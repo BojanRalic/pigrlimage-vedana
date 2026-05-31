@@ -48,9 +48,16 @@ export async function POST(request) {
     const originalName = file.name
     const baseName = originalName.replace(/\.[^.]+$/, '')
     const outName = `${baseName}.webp`
+    const cwd = process.cwd()
+
+    // Reject duplicate: file already exists on disk
+    const outDir = join(cwd, 'public', 'images', destination)
+    const outPath = join(outDir, outName)
+    if (existsSync(outPath)) {
+      return Response.json({ skipped: true, name: outName, path: `/images/${destination}/${outName}` })
+    }
 
     const buffer = Buffer.from(await file.arrayBuffer())
-    const cwd = process.cwd()
 
     // Resize to max 1080px keeping aspect ratio
     const meta = await sharp(buffer).metadata()

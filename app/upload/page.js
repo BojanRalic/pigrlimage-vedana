@@ -29,6 +29,13 @@ function StatusIcon({ status }) {
       </svg>
     )
   }
+  if (status === 'skipped') {
+    return (
+      <svg className="w-4 h-4 text-amber-400 shrink-0" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={2.5}>
+        <path strokeLinecap="round" strokeLinejoin="round" d="M12 9v4m0 4h.01M10.29 3.86L1.82 18a2 2 0 001.71 3h16.94a2 2 0 001.71-3L13.71 3.86a2 2 0 00-3.42 0z" />
+      </svg>
+    )
+  }
   return <div className="w-4 h-4 rounded-full border-2 border-teal-200 shrink-0" />
 }
 
@@ -38,6 +45,7 @@ function FileRow({ item, index }) {
     uploading: `Šalje se... ${item.uploadProgress}%`,
     converting: 'Konvertuje se...',
     done: `Gotovo — ${item.result?.sizeKb ?? '?'}KB (q${item.result?.quality ?? '?'})`,
+    skipped: 'Već postoji — preskočeno',
     error: item.error ?? 'Greška',
   }[item.status]
 
@@ -89,15 +97,20 @@ export default function UploadPage() {
   const addFiles = useCallback((files) => {
     const imageFiles = Array.from(files).filter(f => f.type.startsWith('image/'))
     if (!imageFiles.length) return
-    const previews = imageFiles.map(file => ({
-      file,
-      status: 'waiting',
-      previewUrl: URL.createObjectURL(file),
-      uploadProgress: 0,
-      result: null,
-      error: null,
-    }))
-    setItems(prev => [...prev, ...previews])
+    setItems(prev => {
+      const existingNames = new Set(prev.map(i => i.file.name))
+      const newItems = imageFiles
+        .filter(f => !existingNames.has(f.name))
+        .map(file => ({
+          file,
+          status: 'waiting',
+          previewUrl: URL.createObjectURL(file),
+          uploadProgress: 0,
+          result: null,
+          error: null,
+        }))
+      return [...prev, ...newItems]
+    })
   }, [])
 
   const handleDrop = useCallback((e) => {
@@ -160,9 +173,15 @@ export default function UploadPage() {
             }
           }
         )
-        setItems(prev => prev.map((it, idx) =>
-          idx === i ? { ...it, status: 'done', result, previewUrl: result.path } : it
-        ))
+        if (result.skipped) {
+          setItems(prev => prev.map((it, idx) =>
+            idx === i ? { ...it, status: 'skipped' } : it
+          ))
+        } else {
+          setItems(prev => prev.map((it, idx) =>
+            idx === i ? { ...it, status: 'done', result, previewUrl: result.path } : it
+          ))
+        }
       } catch (err) {
         setItems(prev => prev.map((it, idx) =>
           idx === i ? { ...it, status: 'error', error: err.message } : it
@@ -173,9 +192,10 @@ export default function UploadPage() {
     setIsRunning(false)
   }
 
+  const finishedCount = items.filter(i => i.status === 'done' || i.status === 'skipped').length
   const doneCount = items.filter(i => i.status === 'done').length
   const totalCount = items.length
-  const overallPct = totalCount > 0 ? Math.round(doneCount / totalCount * 100) : 0
+  const overallPct = totalCount > 0 ? Math.round(finishedCount / totalCount * 100) : 0
   const pendingCount = items.filter(i => i.status === 'waiting' || i.status === 'error').length
 
   return (
@@ -245,7 +265,7 @@ export default function UploadPage() {
         {totalCount > 0 && (
           <div>
             <div className="flex justify-between text-xs text-teal-700/70 mb-1.5">
-              <span>{doneCount} / {totalCount} fotografija</span>
+              <span>{finishedCount} / {totalCount} fotografija</span>
               <span>{overallPct}%</span>
             </div>
             <div className="h-2 bg-teal-100 rounded-full overflow-hidden">
