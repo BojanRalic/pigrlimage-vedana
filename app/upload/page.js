@@ -181,7 +181,7 @@ export default function UploadPage() {
   return (
     <main className="min-h-screen bg-cream-100">
       <section className="bg-teal-900 py-14 px-4 text-center">
-        <p className="text-cream-100/50 text-xs tracking-[0.3em] uppercase mb-3">Hoi An</p>
+        <p className="text-cream-100/50 text-xs tracking-[0.3em] uppercase mb-3">HUE</p>
         <h1
           className="text-cream-50 text-4xl sm:text-5xl font-bold mb-2"
           style={{ fontFamily: 'var(--font-playfair)' }}

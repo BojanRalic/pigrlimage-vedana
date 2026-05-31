@@ -68,7 +68,7 @@ export default function Page() {
   return (
     <main className="min-h-screen bg-cream-100">
       <section className="bg-teal-900 py-20 px-4 text-center">
-        <p className="text-cream-100/50 text-xs tracking-[0.3em] uppercase mb-3">Hoi An</p>
+        <p className="text-cream-100/50 text-xs tracking-[0.3em] uppercase mb-3">HUE</p>
         <h1
           className="text-cream-50 text-5xl sm:text-6xl font-bold mb-4"
           style={{ fontFamily: 'var(--font-playfair)' }}
