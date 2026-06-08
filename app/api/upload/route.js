@@ -5,33 +5,9 @@ import { existsSync } from 'fs'
 
 export const runtime = 'nodejs'
 
-// This endpoint is intentionally a local-dev-only tool.
-// It writes processed WebP files to public/images/ and updates lib/data/*.json.
-// Blocked in production (VERCEL env) where the filesystem is read-only.
-
 const MAX_DIM = 1080
 const QUALITY = 80
 const MAX_BYTES = 300_000
-const LOGO_PCT = 0.45
-const LOGO_OPACITY = 0.70
-
-async function makeLogoBuffer(logoPath, targetW) {
-  const raw = await readFile(logoPath)
-  const meta = await sharp(raw).metadata()
-  const targetH = Math.round(targetW * meta.height / meta.width)
-  const resized = await sharp(raw).resize(targetW, targetH).ensureAlpha().toBuffer()
-  const { data, info } = await sharp(resized).raw().toBuffer({ resolveWithObject: true })
-  for (let i = 0; i < data.length; i += 4) {
-    const r = data[i], g = data[i + 1], b = data[i + 2]
-    if (r > 230 && g > 230 && b > 230) {
-      data[i + 3] = 0
-    } else {
-      data[i + 3] = Math.round(data[i + 3] * LOGO_OPACITY)
-    }
-  }
-  const buf = await sharp(data, { raw: { width: info.width, height: info.height, channels: 4 } }).png().toBuffer()
-  return { buf, w: info.width, h: info.height }
-}
 
 export async function POST(request) {
   if (process.env.VERCEL) {
@@ -75,24 +51,11 @@ export async function POST(request) {
     const rw = rm.width
     const rh = rm.height
 
-    // Logo bottom-right
-    const logoPath = join(cwd, 'public', 'logo.png')
-    let compositeInput = []
-    if (existsSync(logoPath)) {
-      const shorter = Math.min(rw, rh)
-      const logoW = Math.round(shorter * LOGO_PCT)
-      const logo = await makeLogoBuffer(logoPath, logoW)
-      const left = Math.round((rw - logo.w) / 2)
-      const top = Math.round((rh - logo.h) / 2)
-      compositeInput = [{ input: logo.buf, left, top, blend: 'over' }]
-    }
-
     // WebP with quality loop to stay under 300KB
     let quality = QUALITY
     let output
     while (quality >= 50) {
       output = await sharp(resizedBuf)
-        .composite(compositeInput)
         .webp({ quality })
         .toBuffer()
       if (output.length <= MAX_BYTES) break

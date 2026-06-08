@@ -16,8 +16,6 @@ import { join, basename, extname } from 'path'
 const MAX_DIM   = 1080
 const QUALITY   = 80
 const MAX_BYTES = 300_000
-const LOGO_PCT  = 0.45
-const OPACITY   = 0.70
 
 const [,, destination, srcDir] = process.argv
 
@@ -31,38 +29,10 @@ if (!srcDir || !existsSync(srcDir)) {
 }
 
 const cwd = process.cwd()
-const LOGO_PATH = join(cwd, 'public', 'logo.png')
 const OUT_DIR   = join(cwd, 'public', 'images', destination)
 const DATA_PATH = join(cwd, 'lib', 'data', `${destination}.json`)
 
 if (!existsSync(OUT_DIR)) await mkdir(OUT_DIR, { recursive: true })
-
-// Load logo once
-let logoBase = null
-let logoBaseMeta = null
-if (existsSync(LOGO_PATH)) {
-  logoBase = await readFile(LOGO_PATH)
-  logoBaseMeta = await sharp(logoBase).metadata()
-} else {
-  console.warn('logo.png not found in public/ — skipping watermark')
-}
-
-async function makeLogoBuffer(targetW) {
-  if (!logoBase) return null
-  const targetH = Math.round(targetW * logoBaseMeta.height / logoBaseMeta.width)
-  const resized = await sharp(logoBase).resize(targetW, targetH).ensureAlpha().toBuffer()
-  const { data, info } = await sharp(resized).raw().toBuffer({ resolveWithObject: true })
-  for (let i = 0; i < data.length; i += 4) {
-    const r = data[i], g = data[i + 1], b = data[i + 2]
-    if (r > 230 && g > 230 && b > 230) {
-      data[i + 3] = 0
-    } else {
-      data[i + 3] = Math.round(data[i + 3] * OPACITY)
-    }
-  }
-  const buf = await sharp(data, { raw: { width: info.width, height: info.height, channels: 4 } }).png().toBuffer()
-  return { buf, w: info.width, h: info.height }
-}
 
 const files = (await readdir(srcDir))
   .filter(f => /\.(jpg|jpeg|png|tiff?)$/i.test(f))
@@ -97,25 +67,11 @@ for (let i = 0; i < files.length; i++) {
   const rw = rm.width
   const rh = rm.height
 
-  // Logo: bottom-right corner
-  let compositeInput = []
-  if (logoBase) {
-    const shorter = Math.min(rw, rh)
-    const logoW = Math.round(shorter * LOGO_PCT)
-    const logo = await makeLogoBuffer(logoW)
-    if (logo) {
-      const left = Math.round((rw - logo.w) / 2)
-      const top  = Math.round((rh - logo.h) / 2)
-      compositeInput = [{ input: logo.buf, left, top, blend: 'over' }]
-    }
-  }
-
   // WebP with quality loop to stay under 300KB
   let quality = QUALITY
   let output
   while (quality >= 50) {
     output = await sharp(resizedBuf)
-      .composite(compositeInput)
       .webp({ quality })
       .toBuffer()
     if (output.length <= MAX_BYTES) break
