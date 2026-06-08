@@ -13,9 +13,11 @@ import { readdir, writeFile, readFile, mkdir } from 'fs/promises'
 import { existsSync } from 'fs'
 import { join, basename, extname } from 'path'
 
-const MAX_DIM   = 1080
-const QUALITY   = 80
-const MAX_BYTES = 300_000
+const MAX_DIM     = 1080
+const QUALITY     = 80
+const MAX_BYTES   = 300_000
+const LOGO_PCT    = 0.45
+const LOGO_OPACITY = 0.70
 
 const [,, destination, srcDir] = process.argv
 
@@ -29,6 +31,7 @@ if (!srcDir || !existsSync(srcDir)) {
 }
 
 const cwd = process.cwd()
+const LOGO_PATH = join(cwd, 'public', 'logo.png')
 const OUT_DIR   = join(cwd, 'public', 'images', destination)
 const DATA_PATH = join(cwd, 'lib', 'data', `${destination}.json`)
 
@@ -67,11 +70,31 @@ for (let i = 0; i < files.length; i++) {
   const rw = rm.width
   const rh = rm.height
 
+  // Logo: centered, 70% opacity
+  let compositeInput = []
+  if (existsSync(LOGO_PATH)) {
+    const raw = await readFile(LOGO_PATH)
+    const meta = await sharp(raw).metadata()
+    const shorter = Math.min(rw, rh)
+    const targetW = Math.round(shorter * LOGO_PCT)
+    const targetH = Math.round(targetW * meta.height / meta.width)
+    const resized = await sharp(raw).resize(targetW, targetH).ensureAlpha().toBuffer()
+    const { data, info } = await sharp(resized).raw().toBuffer({ resolveWithObject: true })
+    for (let i = 0; i < data.length; i += 4) {
+      data[i + 3] = Math.round(data[i + 3] * LOGO_OPACITY)
+    }
+    const logoBuf = await sharp(data, { raw: { width: info.width, height: info.height, channels: 4 } }).png().toBuffer()
+    const left = Math.round((rw - info.width) / 2)
+    const top  = Math.round((rh - info.height) / 2)
+    compositeInput = [{ input: logoBuf, left, top, blend: 'over' }]
+  }
+
   // WebP with quality loop to stay under 300KB
   let quality = QUALITY
   let output
   while (quality >= 50) {
     output = await sharp(resizedBuf)
+      .composite(compositeInput)
       .webp({ quality })
       .toBuffer()
     if (output.length <= MAX_BYTES) break

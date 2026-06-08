@@ -8,6 +8,25 @@ export const runtime = 'nodejs'
 const MAX_DIM = 1080
 const QUALITY = 80
 const MAX_BYTES = 300_000
+const LOGO_PCT = 0.45
+const LOGO_OPACITY = 0.70
+
+async function applyLogo(resizedBuf, rw, rh, logoPath) {
+  const raw = await readFile(logoPath)
+  const meta = await sharp(raw).metadata()
+  const shorter = Math.min(rw, rh)
+  const targetW = Math.round(shorter * LOGO_PCT)
+  const targetH = Math.round(targetW * meta.height / meta.width)
+  const resized = await sharp(raw).resize(targetW, targetH).ensureAlpha().toBuffer()
+  const { data, info } = await sharp(resized).raw().toBuffer({ resolveWithObject: true })
+  for (let i = 0; i < data.length; i += 4) {
+    data[i + 3] = Math.round(data[i + 3] * LOGO_OPACITY)
+  }
+  const logoBuf = await sharp(data, { raw: { width: info.width, height: info.height, channels: 4 } }).png().toBuffer()
+  const left = Math.round((rw - info.width) / 2)
+  const top = Math.round((rh - info.height) / 2)
+  return [{ input: logoBuf, left, top, blend: 'over' }]
+}
 
 export async function POST(request) {
   if (process.env.VERCEL) {
@@ -51,11 +70,17 @@ export async function POST(request) {
     const rw = rm.width
     const rh = rm.height
 
+    const logoPath = join(cwd, 'public', 'logo.png')
+    const compositeInput = existsSync(logoPath)
+      ? await applyLogo(resizedBuf, rw, rh, logoPath)
+      : []
+
     // WebP with quality loop to stay under 300KB
     let quality = QUALITY
     let output
     while (quality >= 50) {
       output = await sharp(resizedBuf)
+        .composite(compositeInput)
         .webp({ quality })
         .toBuffer()
       if (output.length <= MAX_BYTES) break
