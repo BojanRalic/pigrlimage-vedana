@@ -1,6 +1,6 @@
 'use client'
 
-import { useState, useRef, useCallback } from 'react'
+import { useState, useRef, useCallback, useEffect } from 'react'
 
 const DESTINATIONS = [
   { id: 'pilgrimage', label: 'Pilgrimage Village' },
@@ -39,7 +39,7 @@ function StatusIcon({ status }) {
   return <div className="w-4 h-4 rounded-full border-2 border-teal-200 shrink-0" />
 }
 
-function FileRow({ item, index }) {
+function FileRow({ item, onPreview }) {
   const statusLabel = {
     waiting: 'Čeka...',
     uploading: `Šalje se... ${item.uploadProgress}%`,
@@ -49,16 +49,16 @@ function FileRow({ item, index }) {
     error: item.error ?? 'Greška',
   }[item.status]
 
+  const canPreview = item.status === 'done' && item.result?.path
+
   return (
     <div className="flex items-center gap-3 py-3 border-b border-teal-900/5 last:border-0">
-      {/* Thumbnail */}
-      <div className="w-16 h-12 rounded-lg overflow-hidden bg-teal-900/5 shrink-0 flex items-center justify-center">
+      <div
+        className={`w-16 h-12 rounded-lg overflow-hidden bg-teal-900/5 shrink-0 flex items-center justify-center ${canPreview ? 'cursor-zoom-in' : ''}`}
+        onClick={canPreview ? () => onPreview(item.result.path) : undefined}
+      >
         {item.previewUrl ? (
-          <img
-            src={item.previewUrl}
-            alt={item.file.name}
-            className="w-full h-full object-cover"
-          />
+          <img src={item.previewUrl} alt={item.file.name} className="w-full h-full object-cover" />
         ) : (
           <svg className="w-6 h-6 text-teal-300" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={1.5}>
             <rect x="3" y="3" width="18" height="18" rx="2" />
@@ -68,11 +68,10 @@ function FileRow({ item, index }) {
         )}
       </div>
 
-      {/* Info */}
       <div className="flex-1 min-w-0">
         <p className="text-sm text-teal-900 truncate font-medium">{item.file.name}</p>
         <p className="text-xs text-teal-600/70 mt-0.5">{statusLabel}</p>
-        {(item.status === 'uploading') && (
+        {item.status === 'uploading' && (
           <div className="mt-1.5 h-1 bg-teal-100 rounded-full overflow-hidden">
             <div
               className="h-full bg-teal-600 rounded-full transition-all duration-200"
@@ -87,11 +86,44 @@ function FileRow({ item, index }) {
   )
 }
 
+function ImagePopup({ src, onClose }) {
+  useEffect(() => {
+    const onKey = (e) => { if (e.key === 'Escape') onClose() }
+    window.addEventListener('keydown', onKey)
+    return () => window.removeEventListener('keydown', onKey)
+  }, [onClose])
+
+  return (
+    <div
+      className="fixed inset-0 z-50 bg-black/90 flex items-center justify-center p-4"
+      onClick={onClose}
+    >
+      <button
+        onClick={onClose}
+        className="absolute top-4 right-4 text-white/70 hover:text-white p-2"
+        aria-label="Zatvori"
+      >
+        <svg className="w-8 h-8" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
+        </svg>
+      </button>
+      <img
+        src={src}
+        alt=""
+        draggable="false"
+        onClick={(e) => e.stopPropagation()}
+        className="max-w-full max-h-[90vh] object-contain rounded-lg shadow-2xl"
+      />
+    </div>
+  )
+}
+
 export default function UploadPage() {
   const [destination, setDestination] = useState('pilgrimage')
   const [items, setItems] = useState([])
   const [isRunning, setIsRunning] = useState(false)
   const [isDragging, setIsDragging] = useState(false)
+  const [popupSrc, setPopupSrc] = useState(null)
   const fileInputRef = useRef(null)
 
   const addFiles = useCallback((files) => {
@@ -118,9 +150,6 @@ export default function UploadPage() {
     setIsDragging(false)
     addFiles(e.dataTransfer.files)
   }, [addFiles])
-
-  const handleDragOver = (e) => { e.preventDefault(); setIsDragging(true) }
-  const handleDragLeave = () => setIsDragging(false)
 
   function uploadFileWithProgress(file, dest, onProgress) {
     return new Promise((resolve, reject) => {
@@ -237,8 +266,8 @@ export default function UploadPage() {
         {/* Drop zone */}
         <div
           onDrop={handleDrop}
-          onDragOver={handleDragOver}
-          onDragLeave={handleDragLeave}
+          onDragOver={(e) => { e.preventDefault(); setIsDragging(true) }}
+          onDragLeave={() => setIsDragging(false)}
           onClick={() => !isRunning && fileInputRef.current?.click()}
           className={`border-2 border-dashed rounded-2xl p-10 text-center transition-all duration-200 cursor-pointer select-none ${
             isDragging
@@ -277,39 +306,41 @@ export default function UploadPage() {
           </div>
         )}
 
+        {/* Actions — iznad liste */}
+        {(pendingCount > 0 || items.length > 0) && (
+          <div className="flex gap-3">
+            {pendingCount > 0 && !isRunning && (
+              <button
+                onClick={startUpload}
+                className="flex-1 py-3 bg-teal-800 text-cream-50 rounded-full text-sm font-medium hover:bg-teal-700 transition-colors shadow-sm"
+              >
+                Uploaduj {pendingCount} {pendingCount === 1 ? 'fotografiju' : 'fotografija'}
+              </button>
+            )}
+            {isRunning && (
+              <div className="flex-1 py-3 bg-teal-800/50 text-cream-50/70 rounded-full text-sm font-medium text-center">
+                Procesira se...
+              </div>
+            )}
+            {items.length > 0 && !isRunning && (
+              <button
+                onClick={() => setItems([])}
+                className="px-5 py-3 bg-teal-900/10 text-teal-700 rounded-full text-sm font-medium hover:bg-teal-900/15 transition-colors"
+              >
+                Obriši listu
+              </button>
+            )}
+          </div>
+        )}
+
         {/* File list */}
         {items.length > 0 && (
           <div className="bg-white rounded-2xl px-4 shadow-sm border border-teal-900/5">
             {items.map((item, i) => (
-              <FileRow key={i} item={item} index={i} />
+              <FileRow key={i} item={item} onPreview={setPopupSrc} />
             ))}
           </div>
         )}
-
-        {/* Actions */}
-        <div className="flex gap-3">
-          {pendingCount > 0 && !isRunning && (
-            <button
-              onClick={startUpload}
-              className="flex-1 py-3 bg-teal-800 text-cream-50 rounded-full text-sm font-medium hover:bg-teal-700 transition-colors shadow-sm"
-            >
-              Uploaduj {pendingCount} {pendingCount === 1 ? 'fotografiju' : 'fotografija'}
-            </button>
-          )}
-          {isRunning && (
-            <div className="flex-1 py-3 bg-teal-800/50 text-cream-50/70 rounded-full text-sm font-medium text-center">
-              Procesira se...
-            </div>
-          )}
-          {items.length > 0 && !isRunning && (
-            <button
-              onClick={() => setItems([])}
-              className="px-5 py-3 bg-teal-900/10 text-teal-700 rounded-full text-sm font-medium hover:bg-teal-900/15 transition-colors"
-            >
-              Obriši listu
-            </button>
-          )}
-        </div>
 
         {doneCount > 0 && !isRunning && (
           <p className="text-center text-xs text-teal-600/60">
@@ -317,6 +348,8 @@ export default function UploadPage() {
           </p>
         )}
       </div>
+
+      {popupSrc && <ImagePopup src={popupSrc} onClose={() => setPopupSrc(null)} />}
     </main>
   )
 }

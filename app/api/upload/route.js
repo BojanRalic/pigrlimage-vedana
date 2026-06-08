@@ -13,7 +13,7 @@ const MAX_DIM = 1080
 const QUALITY = 80
 const MAX_BYTES = 300_000
 const LOGO_PCT = 0.45
-const LOGO_OPACITY = 0.60
+const LOGO_OPACITY = 0.70
 
 async function makeLogoBuffer(logoPath, targetW) {
   const raw = await readFile(logoPath)
