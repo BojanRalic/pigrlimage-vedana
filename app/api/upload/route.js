@@ -12,9 +12,8 @@ export const runtime = 'nodejs'
 const MAX_DIM = 1080
 const QUALITY = 80
 const MAX_BYTES = 300_000
-const LOGO_PCT = 0.15
+const LOGO_PCT = 0.32
 const LOGO_OPACITY = 0.55
-const LOGO_MARGIN = 18
 
 async function makeLogoBuffer(logoPath, targetW, originalW, originalH) {
   const raw = await readFile(logoPath)
@@ -78,8 +77,8 @@ export async function POST(request) {
       const shorter = Math.min(rw, rh)
       const logoW = Math.round(shorter * LOGO_PCT)
       const logo = await makeLogoBuffer(logoPath, logoW, rw, rh)
-      const left = rw - logo.w - LOGO_MARGIN
-      const top = rh - logo.h - LOGO_MARGIN
+      const left = Math.round((rw - logo.w) / 2)
+      const top = Math.round((rh - logo.h) / 2)
       compositeInput = [{ input: logo.buf, left, top, blend: 'over' }]
     }
 

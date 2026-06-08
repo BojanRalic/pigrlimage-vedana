@@ -16,9 +16,8 @@ import { join, basename, extname } from 'path'
 const MAX_DIM   = 1080
 const QUALITY   = 80
 const MAX_BYTES = 300_000
-const LOGO_PCT  = 0.15
+const LOGO_PCT  = 0.32
 const OPACITY   = 0.55
-const MARGIN    = 18
 
 const [,, destination, srcDir] = process.argv
 
@@ -100,8 +99,8 @@ for (let i = 0; i < files.length; i++) {
     const logoW = Math.round(shorter * LOGO_PCT)
     const logo = await makeLogoBuffer(logoW)
     if (logo) {
-      const left = rw - logo.w - MARGIN
-      const top  = rh - logo.h - MARGIN
+      const left = Math.round((rw - logo.w) / 2)
+      const top  = Math.round((rh - logo.h) / 2)
       compositeInput = [{ input: logo.buf, left, top, blend: 'over' }]
     }
   }
