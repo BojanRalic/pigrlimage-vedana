@@ -96,11 +96,9 @@ export async function POST(request) {
     }
 
     // Save to public/images/{destination}/
-    const outDir = join(cwd, 'public', 'images', destination)
     if (!existsSync(outDir)) {
       await mkdir(outDir, { recursive: true })
     }
-    const outPath = join(outDir, outName)
     await writeFile(outPath, output)
 
     // Update lib/data/{destination}.json
