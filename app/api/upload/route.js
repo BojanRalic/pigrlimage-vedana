@@ -12,17 +12,22 @@ export const runtime = 'nodejs'
 const MAX_DIM = 1080
 const QUALITY = 80
 const MAX_BYTES = 300_000
-const LOGO_PCT = 0.32
-const LOGO_OPACITY = 0.55
+const LOGO_PCT = 0.45
+const LOGO_OPACITY = 0.60
 
-async function makeLogoBuffer(logoPath, targetW, originalW, originalH) {
+async function makeLogoBuffer(logoPath, targetW) {
   const raw = await readFile(logoPath)
   const meta = await sharp(raw).metadata()
   const targetH = Math.round(targetW * meta.height / meta.width)
   const resized = await sharp(raw).resize(targetW, targetH).ensureAlpha().toBuffer()
   const { data, info } = await sharp(resized).raw().toBuffer({ resolveWithObject: true })
-  for (let i = 3; i < data.length; i += 4) {
-    data[i] = Math.round(data[i] * LOGO_OPACITY)
+  for (let i = 0; i < data.length; i += 4) {
+    const r = data[i], g = data[i + 1], b = data[i + 2]
+    if (r > 230 && g > 230 && b > 230) {
+      data[i + 3] = 0
+    } else {
+      data[i + 3] = Math.round(data[i + 3] * LOGO_OPACITY)
+    }
   }
   const buf = await sharp(data, { raw: { width: info.width, height: info.height, channels: 4 } }).png().toBuffer()
   return { buf, w: info.width, h: info.height }
@@ -76,7 +81,7 @@ export async function POST(request) {
     if (existsSync(logoPath)) {
       const shorter = Math.min(rw, rh)
       const logoW = Math.round(shorter * LOGO_PCT)
-      const logo = await makeLogoBuffer(logoPath, logoW, rw, rh)
+      const logo = await makeLogoBuffer(logoPath, logoW)
       const left = Math.round((rw - logo.w) / 2)
       const top = Math.round((rh - logo.h) / 2)
       compositeInput = [{ input: logo.buf, left, top, blend: 'over' }]

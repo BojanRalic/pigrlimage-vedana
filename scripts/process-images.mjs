@@ -16,8 +16,8 @@ import { join, basename, extname } from 'path'
 const MAX_DIM   = 1080
 const QUALITY   = 80
 const MAX_BYTES = 300_000
-const LOGO_PCT  = 0.32
-const OPACITY   = 0.55
+const LOGO_PCT  = 0.45
+const OPACITY   = 0.60
 
 const [,, destination, srcDir] = process.argv
 
@@ -52,8 +52,13 @@ async function makeLogoBuffer(targetW) {
   const targetH = Math.round(targetW * logoBaseMeta.height / logoBaseMeta.width)
   const resized = await sharp(logoBase).resize(targetW, targetH).ensureAlpha().toBuffer()
   const { data, info } = await sharp(resized).raw().toBuffer({ resolveWithObject: true })
-  for (let i = 3; i < data.length; i += 4) {
-    data[i] = Math.round(data[i] * OPACITY)
+  for (let i = 0; i < data.length; i += 4) {
+    const r = data[i], g = data[i + 1], b = data[i + 2]
+    if (r > 230 && g > 230 && b > 230) {
+      data[i + 3] = 0
+    } else {
+      data[i + 3] = Math.round(data[i + 3] * OPACITY)
+    }
   }
   const buf = await sharp(data, { raw: { width: info.width, height: info.height, channels: 4 } }).png().toBuffer()
   return { buf, w: info.width, h: info.height }
